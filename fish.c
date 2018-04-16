@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "cmdline.h"
+#include "cmdexec.h"
 
 #define BUFLEN 2048
 
@@ -15,7 +16,8 @@ int main() {
 
   for (;;) {
     printf("fish> ");
-    fgets(buf, BUFLEN, stdin);
+    char *c = fgets(buf, BUFLEN, stdin);
+    ++c;
 
     int err = line_parse(&li, buf);
     if (err) { 
@@ -50,6 +52,8 @@ int main() {
     fprintf(stderr, "\tBackground: %s\n", YESNO(li.background));
 
     /* do something with li */
+    /*ok*/
+    cmd_execute(li, 0);
 
     line_reset(&li);
   }

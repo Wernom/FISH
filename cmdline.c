@@ -35,6 +35,25 @@ static bool valid_cmdarg_filename(const char *word){
 }
 
 /**
+ * Print the string "Error while parsing: ", followed by the string "format" to stderr
+ * 
+ * This function is static : it means that it is a local function, accessible only in this source file.
+ * The string "format" may contains format specifications that specifies how subsequent arguments are
+ * converted for output. So, this function can be called with a variable number of parameters.
+ * NB : vfprintf() uses the variable-length argument facilities of stdarg(3)
+ * 
+ * @param format string
+ */
+static void parse_error(const char *format, ...) {
+  va_list ap;
+
+  fprintf(stderr, "Error while parsing: ");
+  va_start(ap, format);
+  vfprintf(stderr, format, ap);
+  va_end(ap);
+}
+
+/**
  * Search a new word in the string "str" from the "index" position
  * 
  * This function is static : it means that it is a local function, accessible only in this source file.
@@ -77,6 +96,7 @@ static int line_next_word(const char *str, size_t *index, char **pword) {
     } while (str[i] != '\0' && str[i] != '"');
 
     if (str[i] == '\0') {
+      parse_error("Malformed line\n");
       return -1;
     }
     assert(str[i] == '"');
@@ -96,36 +116,15 @@ static int line_next_word(const char *str, size_t *index, char **pword) {
   assert(end >= start); 
   *pword = calloc(end - start + 1, sizeof(char));
   if (*pword == NULL){
+    fprintf(stderr, "Memory allocation failure\n");
     return -2;
   }
   memcpy(*pword, str + start, end - start);
   return 0;
 }
 
-/**
- * Print the string "Error while parsing: ", followed by the string "format" to stderr
- * 
- * This function is static : it means that it is a local function, accessible only in this source file.
- * The string "format" may contains format specifications that specifies how subsequent arguments are
- * converted for output. So, this function can be called with a variable number of parameters.
- * NB : vfprintf() uses the variable-length argument facilities of stdarg(3)
- * 
- * @param format string
- */
-static void parse_error(const char *format, ...) {
-  va_list ap;
 
-  fprintf(stderr, "Error while parsing: ");
-  va_start(ap, format);
-  vfprintf(stderr, format, ap);
-  va_end(ap);
-}
 
-enum status {
-  COMMANDS,
-  OUTPUT_REDIRECTION,
-  BACKGROUND
-};
 
 int line_parse(struct line *li, const char *str) {
   assert(li);
@@ -147,19 +146,11 @@ int line_parse(struct line *li, const char *str) {
   size_t curr_arg = 0;
   int valret = 0; 
 
-  enum status status = COMMANDS;
-
   for (;;) {
     /* get the next word */
     char *word;
     int err = line_next_word(str, &index, &word);
-    if (err == -1) {
-      parse_error("Malformed line\n");
-      valret = -1; 
-      break;
-    }
-    else if (err == -2){
-      fprintf(stderr, "Memory allocation failure\n");
+    if (err) {
       valret = -1; 
       break;
     }
@@ -175,8 +166,14 @@ int line_parse(struct line *li, const char *str) {
     if (strcmp(word, "|") == 0) {
       free(word);
 
-      if (status != COMMANDS) {
-        parse_error("No pipe allowed after an output redirection or a '&'\n");
+      if (li->background) {
+        parse_error("No pipe allowed after a '&'\n");
+        valret = -1;
+        break;
+      }
+      
+      if (li->redirect_output) {
+        parse_error("No pipe allowed after an output redirection\n");
         valret = -1;
         break;
       }
@@ -200,32 +197,15 @@ int line_parse(struct line *li, const char *str) {
         valret = -1;
         break;
       }
-
-      if (status == COMMANDS) {
-        if (curr_arg == 0) {
-          parse_error("No output redirection allowed after an empty command\n");
-          valret = -1;
-          break;
-        }
-        status = OUTPUT_REDIRECTION;
-      }
-
-      if (status != OUTPUT_REDIRECTION) {
+      
+      if (li->background) {
         parse_error("No output redirection allowed after a '&'\n");
         valret = -1;
         break;
       }
 
-      li->redirect_output = true;
-
       err = line_next_word(str, &index, &word);
-      if (err == -1) {
-        parse_error("Malformed line\n");
-        valret = -1; 
-        break;
-      }
-      else if (err == -2){
-        fprintf(stderr, "Memory allocation failure\n");
+      if (err) {
         valret = -1; 
         break;
       }
@@ -242,7 +222,8 @@ int line_parse(struct line *li, const char *str) {
         valret = -1;
         break;        
       }
-
+      
+      li->redirect_output = true;
       li->file_output = word;
 
     } 
@@ -255,7 +236,7 @@ int line_parse(struct line *li, const char *str) {
         break;
       }
       
-      if (status == BACKGROUND) {
+      if (li->background) {
         parse_error("No input redirection allowed after a '&'\n");
         valret = -1;
         break;
@@ -266,23 +247,9 @@ int line_parse(struct line *li, const char *str) {
         valret = -1;
         break;
       }
-      
-      if (curr_arg == 0) {
-        parse_error("No input redirection allowed after an empty command\n");
-        valret = -1;
-        break;
-      }
-
-      li->redirect_input = true;
 
       err = line_next_word(str, &index, &word);
-      if (err == -1) {
-        parse_error("Malformed line\n");
-        valret = -1; 
-        break;
-      }
-      else if (err == -2){
-        fprintf(stderr, "Memory allocation failure\n");
+      if (err) {
         valret = -1; 
         break;
       }
@@ -299,14 +266,15 @@ int line_parse(struct line *li, const char *str) {
         valret = -1;
         break;      
       }
-
+      
+      li->redirect_input = true;
       li->file_input = word;
 
     } 
     else if (strcmp(word, "&") == 0) {
       free(word);
 
-      if (status == BACKGROUND) {
+      if (li->background) {
         parse_error("More than one '&' detected\n");
         valret = -1;
         break;
@@ -318,14 +286,12 @@ int line_parse(struct line *li, const char *str) {
         break;
       }
 
-      status = BACKGROUND;
-
       li->background = true;
     } 
     else {
-      if (status != COMMANDS) {
+      if (li->background) {
         free(word);
-        parse_error("No more commands allowed after an output redirection or a '&'\n");
+        parse_error("No more commands allowed after a '&'\n");
         valret = -1;
         break;
       }
@@ -352,11 +318,25 @@ int line_parse(struct line *li, const char *str) {
       li->cmds[curr_cmd].args[curr_arg] = word;
       ++curr_arg;
     }
-  }
+  } //end of the loop for
 
-  if (!valret && curr_cmd > 0 && curr_arg == 0) {
-    parse_error("An empty command detected\n");
-    valret = -1;
+  if (!valret && curr_arg == 0) {
+    if (curr_cmd > 0){
+      parse_error("An empty command detected\n");
+      valret = -1;
+    }
+    // in a real shell, "< fic" is equivalent to "test -r fic"
+    else if (li->redirect_input){
+      parse_error("Missing first command\n");
+      valret = -1;
+    }
+    // in a real shell, "> fic" :
+    // - creates the regular file "fic" if it does not exist, 
+    // - and truncates it if it already exists
+    else if (li->redirect_output){
+      parse_error("Missing last command\n");
+      valret = -1;
+    }
   }
 
   if (curr_arg != 0) {

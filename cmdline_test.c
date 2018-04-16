@@ -33,6 +33,9 @@ static void try(const char *str, int expected) {
     printf("UNEXPECTED RETURN WITH: %s\n", str);
   } 
   else {
+    if (err){
+      printf("Command line : %s", str);
+    }
     printf("TEST OK!\n");
   }
   line_reset(&li);
@@ -55,11 +58,14 @@ int main() {
   try("bar | baz\n", OK);
   try("bar | baz &\n", OK);
   try("bar | baz > qux\n", OK);
+  try("bar | > qux baz\n", OK);
   try("bar < qux | baz\n", OK);
+  try("< qux bar | baz\n", OK);
+  try("< fic1 bar > fic2 bar1\n", OK);
   try("bar bar1 < qux | baz\n", OK);
   try("bar < qux baz\n", OK);
+  try("bar > qux baz\n", OK);
   try("bar | baz | qux\n", OK);
-
   try("bar \"baz\"\n", OK);
   try("bar \"baz qux\"\n", OK);
   try("     \n", OK);
@@ -67,36 +73,44 @@ int main() {
 
   // things not working
   try("bar \"bar\n", KO);	
-
+  
   try("bar & | baz\n", KO);
   try("bar > qux | baz\n", KO);
-  try("bar | baz < qux\n", KO);
- 
-
-  try("bar >\n", KO);		
+  try("bar > qux |\n", KO);
+  try("bar | | barz\n", KO);
+  try("|\n", KO);
+  
   try("bar > qux > baz\n", KO);
-  try("bar | > qux\n", KO);
   try("bar & > qux\n", KO);
-
-  try("bar <\n", KO);		
-  try("bar < qux < baz\n", KO);
-  try("bar < < baz\n", KO);
-  try("bar << baz\n", KO);
-  try("bar | < qux\n", KO);
-  try("bar & < qux\n", KO);
-
-  try("bar & &\n", KO);		
-
-  try("bar & baz\n", KO);	
-  try("bar > qux baz\n", KO);
-  try("bar |\n", KO);
-
-  try("bar | | barz\n", KO);	
+  try("bar >\n", KO);
+  try("bar > qu&x\n", KO);
   try("bar > >\n", KO);
-  try("< qux \n", KO);
-  try("> qux \n", KO);
+  
+  try("bar < qux < baz\n", KO);
+  try("bar < qux <\n", KO);
+  try("bar & < qux\n", KO);
+  try("bar bar | baz < qux\n", KO);
+  try("bar | < qux\n", KO);
+  try("bar <   \n", KO);
+  try("bar <\n", KO);
+  try("bar < < baz\n", KO);
+  try("bar < <baz\n", KO);
+  
+  try("bar & &\n", KO);		
   try("bar | &\n", KO);
   try("& \n", KO);
+  
+  try("bar & baz\n", KO);
+  try("bar & ba&z\n", KO);
+  try("bar << baz\n", KO);
+  try("bar &ml baz\n", KO);
+  
+  try("bar |\n", KO);
+  try("bar | > qux\n", KO);
+  try("< qux \n", KO);
+  try("< fic1 > fic2\n", KO);
+  try("> qux \n", KO);
+  
 
   return 0;
 }
