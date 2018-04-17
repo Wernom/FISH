@@ -5,17 +5,20 @@
 #include "cmdexec.h"
 
 #define BUFLEN 2048
+#define SIZE_CUR_DIR 2048
 
 #define YESNO(i) ((i) ? "Y" : "N")
 
 int main() {
   struct line li;
   char buf[BUFLEN];
+  char cur_dir[SIZE_CUR_DIR];
 
   line_init(&li);
 
   for (;;) {
-    printf("fish> ");
+    if(!getcwd(cur_dir, SIZE_CUR_DIR)) perror("fish.c -> getcwd"); 
+    printf("fish:%s > ", cur_dir);
     char *c = fgets(buf, BUFLEN, stdin);
     ++c;
 
@@ -53,7 +56,13 @@ int main() {
 
     /* do something with li */
     /*ok*/
-    cmd_execute(li, 0);
+    
+    cmd_exit_fish(li);
+    if(cmd_cd(li)){}
+    else{
+      cmd_execute(li, 0);
+    }
+    
 
     line_reset(&li);
   }
