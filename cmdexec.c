@@ -35,6 +35,9 @@ void cmd_exit_fish(struct line li){
 
 bool cmd_cd(struct line li){
     if(!strcmp(li.cmds[0].args[0], "cd")){
+        if(li.cmds[0].args[1] == NULL){
+            li.cmds[0].args[1] = getenv("HOME");
+        }
         if(chdir(li.cmds[0].args[1])==-1) perror("cmdexec.c -> chdir");
         return true;
     }
