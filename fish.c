@@ -17,8 +17,11 @@ int main() {
   line_init(&li);
 
   for (;;) {
-    if(!getcwd(cur_dir, SIZE_CUR_DIR)) perror("fish.c -> getcwd"); 
-    printf("fish:%s > ", cur_dir);
+    if(!getcwd(cur_dir, SIZE_CUR_DIR)){
+      perror("fish.c -> getcwd");
+      exit(EXIT_FAILURE);
+    }  
+    printf("\033[1;32mfish\033[1;00m:\033[1;36m%s\033[00m > ", cur_dir); //\033[XXm is used for display the a colored and bold text where XX is the code for the action to realise
     char *c = fgets(buf, BUFLEN, stdin);
     ++c;
 
@@ -56,13 +59,13 @@ int main() {
 
     /* do something with li */
     /*ok*/
-    
-    cmd_exit_fish(li);
-    if(cmd_cd(li)){}
-    else{
-      cmd_execute(li, 0);
+    if(li.cmds[0].args[0] != NULL){
+      cmd_exit_fish(li);
+      if(cmd_cd(li)){}
+      else{
+        cmd(li, 0);
+      }
     }
-    
 
     line_reset(&li);
   }
