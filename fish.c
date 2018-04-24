@@ -68,7 +68,7 @@ int main() {
       cmd_exit_fish(li);
       if(cmd_cd(li)){}
       else{
-        cmd(li, 0, old);
+        cmd(li, old);
       }
     }
 

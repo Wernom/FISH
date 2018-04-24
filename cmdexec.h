@@ -19,7 +19,7 @@
 
 
 
-void cmd(struct line li, size_t nb_cmd, struct sigaction old);
+void cmd(struct line li, struct sigaction old);
 void cmd_execute(struct line li, size_t nb_cmd);
 void cmd_exit_fish(struct line li);
 bool cmd_cd(struct line li);
@@ -32,6 +32,6 @@ void cmd_state_child();
 struct sigaction cmd_SIGCHLD();
 void cmd_SIGCHLD_restor(struct sigaction old);
 void cmd_redirection_black_hole(struct line li);
-void cmd_multi(struct line li, struct sigaction old, size_t cmd, size_t nb_cmd, pid_t *pid, int *tube);
+int* cmd_multi(struct line li, struct sigaction old, size_t cmd, pid_t pid[], int tubePrev[]);
 
 #endif

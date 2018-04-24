@@ -6,59 +6,25 @@ int status;
 struct sigaction old_SIGCHLD;
 
 
-void cmd(struct line li, size_t nb_cmd, struct sigaction old){
+void cmd(struct line li, struct sigaction old){
     printf("\nCommande result: \n");
-    pid_t pid[MAX_PID];
-    int tube[2];
-    if(pipe(tube) == -1){
-        perror("cmdexec.c -> pipe");
-        exit(EXIT_FAILURE);
-    }
-    pid[0] = fork();
-    if(!pid[0]){
-        
+    int *pid = calloc(MAX_PID, sizeof(pid_t));
+    int *tube = NULL;
 
-        if(dup2(tube[1], 1) == -1){
-            perror("1");
-            exit(EXIT_FAILURE);
-        }
-        close(tube[1]);
-        close(tube[0]);
-        if((li.redirect_output || li.redirect_input)){
-            cmd_redirection(li, li.redirect_input ? 0 : 1);
-        }else{
-            cmd_execute(li, 0);
-        }
-        
+    for(int i = 0; i < li.ncmds; ++i){
+        tube = cmd_multi(li, old, i, pid, tube);//TODO: fuite memoire il y en a partout c'est dégueulasse  remettre en place les redirections l'arriere plan et la gestion des signaux.
     }
-
-    close(tube[1]);
-    pid[1] = fork();
-
-    if(!pid[1]){
-        if(dup2(tube[0], 0) == -1){
-            perror("2");
-            exit(EXIT_FAILURE);
-        }
-        close(tube[0]);
-        cmd_execute(li, 1);
-    }
-
-    if(close(tube[0]) == -1){
-        perror("cmdexec.c -> close 3");
-        exit(EXIT_FAILURE);
-    }
+    
     if(li.background){
         old_SIGCHLD = cmd_SIGCHLD();
     }else{
-        /*for(size_t i=0; i<nb_cmd; ++i){
+        for(size_t i=0; i<li.ncmds; ++i){
             waitpid(pid[i], &status, 0);//eliminer les zombies dans le bon ordre
             cmd_state_child();
-        }*/
-        
-        waitpid(pid[0], &status, 0);
-        waitpid(pid[1], &status, 0);
+        }
     }
+    free(tube);
+    free(pid);
 }
 
 void cmd_execute(struct line li, size_t nb_cmd){
@@ -186,60 +152,59 @@ void cmd_SIGCHLD_restor(struct sigaction old){
     }
 }
 
-/*void cmd_multi(struct line li, struct sigaction old, size_t cmd, size_t nb_cmd, pid_t *pid){
-    size_t index = nb_cmd - cmd;
-    pid[index] = fork();
-    if(pid[index] == -1){
-        perror("cmdexec.c -> fork");
-        line_reset(&li);
-        exit(EXIT_FAILURE);
-    }
-    if(!pid[index]){
-        cmd_SIGINT(old);
-        if(cmd != 0){
-            cmd_multi(li, old, cmd-1, nb_cmd, pid);
-        }
+int* cmd_multi(struct line li, struct sigaction old, size_t cmd, pid_t *pid, int *tubePrev){
 
-        int tube[2];
-        if(pipe(tube) == -1){
+    int *tubeNext = NULL; 
+    if(cmd != li.ncmds-1){
+        tubeNext = calloc(2, sizeof(int));
+        if(pipe(tubeNext) == -1){
             perror("cmdexec.c -> pipe");
-            line_reset(&li);
             exit(EXIT_FAILURE);
         }
-
-        if(cmd != nb_cmd){
-            if(dup2(0, tube[0]) == -1){
-                perror("cmdexec.c -> dup2");
-                line_reset(&li);
-                exit(EXIT_FAILURE);
-            }
-            if(close(tube[0]) == -1){
-                perror("cmdexec.c -> close");
-                line_reset(&li);
-                exit(EXIT_FAILURE);
-            }
-        }
-        
-
+    }
+    pid[cmd] = fork();
+    if(!pid[cmd]){//FILS
         if(cmd != 0){
-            if(dup2(tube[1], 1) == -1){
-                perror("cmdexec.c -> dup2");
-                line_reset(&li);
-                exit(EXIT_FAILURE);
+            if(dup2(tubePrev[0], 0) == -1){
+                perror("cmdexec.c -> dup2 1");
+                exit(EXIT_FAILURE);//TODO: ne pas oublier fuite memoire
             }
-            if(close(tube[1]) == -1){
-                perror("cmdexec.c -> close");
-                line_reset(&li);
+            if(close(tubePrev[0]) == -1){
+                perror("cmdexec.c -> close 1");
                 exit(EXIT_FAILURE);
             }
         }
+        if(cmd != li.ncmds-1){
+            if(dup2(tubeNext[1], 1) == -1){
+                perror("cmdexec.c -> dup2 1");
+                exit(EXIT_FAILURE);
+            }
+            if(close(tubeNext[1]) == -1){
+                perror("cmdexec.c -> close 2");
+                exit(EXIT_FAILURE);
+            }
+            if(close(tubeNext[0]) == -1){
+                perror("cmdexec.c -> close 3");
+                exit(EXIT_FAILURE);
+            }
+        }
+        cmd_execute(li, cmd);
+    }
 
-        if((li.redirect_output || li.redirect_input) && cmd == nb_cmd){
-            cmd_redirection(li, li.redirect_input ? 0 : 1);
-        }else{
-            cmd_redirection_black_hole(li);
-            cmd_execute(li, 0);
+    if(cmd != 0){
+        if(close(tubePrev[0]) == -1){
+            perror("cmdexec.c -> close 4");
+            exit(EXIT_FAILURE);
         }
     }
-    
-}*/
+
+    if(cmd != li.ncmds-1){
+        if(close(tubeNext[1]) == -1){
+            perror("cmdexec.c -> close 2");
+            exit(EXIT_FAILURE);
+        }
+    }
+
+
+    return tubeNext;
+}
