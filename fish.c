@@ -1,19 +1,24 @@
+#define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
 #include <string.h>
 
 #include "cmdline.h"
 #include "cmdexec.h"
 
+
+
 #define BUFLEN 2048
 #define SIZE_CUR_DIR 2048
 
 #define YESNO(i) ((i) ? "Y" : "N")
 
+
+
 int main() {
   struct line li;
   char buf[BUFLEN];
   char cur_dir[SIZE_CUR_DIR];
-
+  struct sigaction old =  cmd_SIGINT_nothing();
   line_init(&li);
 
   for (;;) {
@@ -21,7 +26,7 @@ int main() {
       perror("fish.c -> getcwd");
       exit(EXIT_FAILURE);
     }  
-    printf("\033[1;32mfish\033[1;00m:\033[1;36m%s\033[00m > ", cur_dir); //\033[XXm is used for display the a colored and bold text where XX is the code for the action to realise
+    printf("\033[1;34mfish\033[1;00m:\033[1;32m%s\033[00m$ ", cur_dir); //\033[XXm is used for display the a colored and bold text where XX is the code for the action to realise
     char *c = fgets(buf, BUFLEN, stdin);
     ++c;
 
@@ -63,7 +68,7 @@ int main() {
       cmd_exit_fish(li);
       if(cmd_cd(li)){}
       else{
-        cmd(li, 0);
+        cmd(li, 0, old);
       }
     }
 
