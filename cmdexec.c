@@ -9,16 +9,43 @@ struct sigaction old_SIGCHLD;
 void cmd(struct line li, size_t nb_cmd, struct sigaction old){
     printf("\nCommande result: \n");
     pid_t pid[MAX_PID];
+    int tube[2];
+    if(pipe(tube) == -1){
+        perror("cmdexec.c -> pipe");
+        exit(EXIT_FAILURE);
+    }
     pid[0] = fork();
-    //cmd_multi(li, old, nb_cmd-1, nb_cmd-1, pid);
-    if(!pid[0]){  
+    if(!pid[0]){
+        
+
+        if(dup2(tube[1], 1) == -1){
+            perror("1");
+            exit(EXIT_FAILURE);
+        }
+        close(tube[1]);
+        close(tube[0]);
         if((li.redirect_output || li.redirect_input)){
             cmd_redirection(li, li.redirect_input ? 0 : 1);
         }else{
-            cmd_redirection_black_hole(li);
             cmd_execute(li, 0);
         }
-        fprintf(stderr, "Command invalid ");
+        
+    }
+
+    close(tube[1]);
+    pid[1] = fork();
+
+    if(!pid[1]){
+        if(dup2(tube[0], 0) == -1){
+            perror("2");
+            exit(EXIT_FAILURE);
+        }
+        close(tube[0]);
+        cmd_execute(li, 1);
+    }
+
+    if(close(tube[0]) == -1){
+        perror("cmdexec.c -> close 3");
         exit(EXIT_FAILURE);
     }
     if(li.background){
@@ -30,10 +57,14 @@ void cmd(struct line li, size_t nb_cmd, struct sigaction old){
         }*/
         
         waitpid(pid[0], &status, 0);
+        waitpid(pid[1], &status, 0);
     }
 }
 
 void cmd_execute(struct line li, size_t nb_cmd){
+    if(li.background){
+        cmd_redirection_black_hole(li);
+    }
     execvp(li.cmds[nb_cmd].args[0], li.cmds[nb_cmd].args);
     printf("Invalid command");
     line_reset(&li);
@@ -60,7 +91,7 @@ bool cmd_cd(struct line li){
 
 void cmd_redirection_black_hole(struct line li){
     if(li.background){
-        if(dup2(open("/dev/null", O_WRONLY), 1) == -1){
+        if(dup2(open("/dev/null", O_RDONLY), 0) == -1){
             perror("cmdexec.c -> dup2");
             line_reset(&li);
             exit(EXIT_FAILURE);

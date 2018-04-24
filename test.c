@@ -11,31 +11,46 @@
 
 int status;
 
-void handler(){
-
-}
-
-
-
 int main(int argc, char **argv) {
     
-    if(!fork()){
-        execl("/bin/sh", "sh", "-c", argv[1], NULL);
-        perror("execl");
-        exit(1);
-    }
 
-    struct sigaction new, old;
-    new.sa_handler= SIG_IGN;
-    sigaction(SIGINT, &new, &old);
-    wait(&status);
+    /*char *cmd[]= {"echo","azerty",NULL};
+    execvp(cmd[0], cmd);*/
 
-    if(WIFEXITED(status)){
-        printf("\nChild terminated normaly.\nReturn code : %d.\n", WEXITSTATUS(status));
+    int tube[2];
+    pipe(tube);
+    pid_t pid1 = fork();
+    
+    if(!pid1){
+
+        if(dup2(tube[1], 1) == -1){
+            perror("1");
+            exit(EXIT_FAILURE);
+        }
+        close(tube[1]);
+        close(tube[0]);
+        
+        execlp("ps", "ps", "-e", NULL);
+
+        exit(0);
     }
-    if (WIFSIGNALED(status)) {
-        printf("\nChild terminated by a signal.\nKiled by : %d.\n", WTERMSIG(status));
+    close(tube[1]);
+    int pid2 = fork();
+
+    if(!pid2){
+        if(dup2(tube[0], 0) == -1){
+            perror("2");
+            exit(EXIT_FAILURE);
+        }
+        close(tube[0]);
+        execlp("wc", "wc", "-l", NULL);
+        exit(0);
     }
+    close(tube[0]);
+
+    wait(NULL);
+    wait(NULL);
+
     
     return 0;
 }
