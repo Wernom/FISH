@@ -1,0 +1,16 @@
+cmdexec.c
+cmdexec.h
+cmdexec.o
+cmdline.c
+cmdline.h
+cmdline.o
+cmdline_test.c
+cmdlin_test
+fish
+fish.c
+fish.o
+foepk
+makefile
+pwd.txt
+test
+test.c

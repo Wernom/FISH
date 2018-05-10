@@ -1,4 +1,5 @@
 #define _POSIX_C_SOURCE 200809L
+#define _BSD_SOURCE
 #include <stdio.h>
 #include <string.h>
 
@@ -20,7 +21,14 @@ int main() {
   char cur_dir[SIZE_CUR_DIR];
   struct sigaction old =  cmd_SIGINT_nothing();
   line_init(&li);
-
+  list_create(&list_status_fils);
+  struct free_on_exit fr;
+  fr.li = &li;
+  fr.list_status_fils = &list_status_fils;
+  if(on_exit(free_li, &fr)){
+    fprintf(stderr, "on_exit failed");
+    exit(1);
+  }
   for (;;) {
     if(!getcwd(cur_dir, SIZE_CUR_DIR)){
       perror("fish.c -> getcwd");
@@ -36,7 +44,6 @@ int main() {
       line_reset(&li);
       continue;
     }
-
     fprintf(stderr, "Command line:\n");
     fprintf(stderr, "\tNumber of commands: %zu\n", li.ncmds);
 
